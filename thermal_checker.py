@@ -16,7 +16,7 @@ AMG8833_ADDRESS = 0x69 # set address for AMG8833(0x68 or 0x69)
 # when detected the face, will scan frequently.
 freqencyScanDuration = 5000 # 5 sec
 # Seconds to sleep with inactivity
-noneActivityDuration = 10000 # 30 sec
+noneActivityDuration = 20000 # 30 sec
 # Thermal camera measure count(default : 20 times, 30 times makes slightly better?)
 thermalCameraMeasureCount = 20
 # Face recognition skip threshold (User recognized consecutive 2 times ,then skip 2 seconds)
@@ -289,6 +289,7 @@ class thermalLogger:
 			oled.setProgress( 1 - (x / float(30)))
 			time.sleep(0.1)
 		# if user is not detected for 3 seconds, return to the main loop
+		time.sleep(0.2)
 
 
 

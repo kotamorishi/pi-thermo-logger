@@ -11,6 +11,8 @@ import os
 import threading
 import enum
 import datetime
+from random import randrange
+
 
 class displayMode(enum.Enum):
    Sleep = 0
@@ -63,6 +65,10 @@ class ssd1306_oled(object):
                     drawUpdate.text((5, 0), self.name.upper() , font=self.font16, fill=100)
                     #drawUpdate.text((0, 40), "measuring your temperature".upper() , font=self.font8, fill=100)
                     #drawUpdate.text((40, 50), self.temp , font=self.font8, fill=100)
+                    now = datetime.datetime.now() # current date and time
+                    currentTimeString = now.strftime("%p %H:%M")
+                    drawUpdate.text((90, 0), currentTimeString , font=self.font8, fill=100)
+
 
                     if(self.distance <= self.distanceRange[0]):
                         # too close
@@ -82,9 +88,19 @@ class ssd1306_oled(object):
                     scanBmp      = Image.open(os.path.join("images",  "s" + str(self.animationFrame) + ".bmp"))
                     drawUpdate.bitmap((0,0), scanBmp, fill=100)
                     self.animationFrame = self.animationFrame + 1
+
+                    now = datetime.datetime.now() # current date and time
+                    currentTimeString = now.strftime("%p %H:%M")
+                    drawUpdate.text((90, 0), currentTimeString , font=self.font8, fill=100)
+
                     time.sleep(0.03) # lower screen refresh
-                    if(self.animationFrame > 10):
-                        self.animationFrame = 1
+                    if(self.animationFrame > 14):
+                        if(randrange(3) == 1):
+                            self.animationFrame = 10
+                        elif(randrange(3) == 2):
+                            self.animationFrame = 6
+                        else:
+                            self.animationFrame = 1
 
                 if(self.displayMode == displayMode.Log):
                     drawUpdate.text((10, 0), self.name , font=self.font8, fill=100)
