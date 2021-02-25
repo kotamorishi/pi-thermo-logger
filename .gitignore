@@ -130,3 +130,5 @@ dmypy.json
 
 # pickle
 .pickle
+
+history
