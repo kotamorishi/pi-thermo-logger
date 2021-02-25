@@ -35,7 +35,7 @@ class recognizer(object):
 		self.vs = VideoStream(src=0).start()
 		self.recognizedPerson = None
 
-	def lookout(self):
+	def lookout(self, shouldRecognizeFace=True):
 		# grab the frame from the threaded video stream and resize it
 		# to 500px (to speedup processing)
 		frame = self.vs.read()
@@ -51,13 +51,10 @@ class recognizer(object):
 			minNeighbors=5, minSize=(30, 30),
 			flags=cv2.CASCADE_SCALE_IMAGE)
 		
-		if(len(rects) > 1):
-			# when detect 1+ faces, skip following
+		if(len(rects) != 1):
+			# when detect 1+ faces, skip following..?
+			# TODO:handle 2+ ppl detected.
 			return None
-
-		facepos = 0
-		for (x, y, w, h) in rects:
-			facepos = x
 
 
 		# OpenCV returns bounding box coordinates in (x, y, w, h) order
@@ -69,8 +66,11 @@ class recognizer(object):
 		# compute the facial embeddings for each face bounding box
 		encodings = face_recognition.face_encodings(rgb, boxes)
 		names = []
-		
 
+		if(shouldRecognizeFace == False):
+			# once face is recognized, return "FaceFound"
+			return detectedPerson("FaceFound", boxes[0][0], boxes[0][1])
+		
 
 		# loop over the facial embeddings
 		for encoding in encodings:
@@ -109,7 +109,7 @@ class recognizer(object):
 		if(len(encodings) > 0):
 			# fade detected but not matched with registered user.
 			if(names[0]=="Unknown"):
-				print("Unknown face detected.")
+				#print("Unknown face detected.")
 				return detectedPerson("Unknown", 0, 0)
 			
 			return detectedPerson(names[0], rects[0][0], rects[0][1])

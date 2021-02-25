@@ -1,11 +1,14 @@
 from Adafruit_AMG88xx import Adafruit_AMG88xx
 import os
 import math
+import datetime
 import time
 import busio
 import board
 import smbus
 import numpy
+import queue
+import csv
 from gpiozero import LED
 
 # I2C address setting
@@ -15,7 +18,17 @@ freqencyScanDuration = 5000 # 5 sec
 # Seconds to sleep with inactivity
 noneActivityDuration = 10000 # 30 sec
 # Thermal camera measure count(default : 20 times, 30 times makes slightly better?)
-thermalCameraMeasureCount = 30
+thermalCameraMeasureCount = 20
+# Face recognition skip threshold (User recognized consecutive 2 times ,then skip 2 seconds)
+faceRecognitionSkipThreshold = 2
+faceRecognitionSkipDuration = 2000 # in ms
+
+# Sleep / Wake up range (1.5m)
+wakeUpRangeThreshold = 1500
+
+# exclude measurements
+excludeTemp = (30, 42) # low, high
+distanceRange = (300, 600) # close, far
 
 # init i2c bus
 i2c_bus = busio.I2C(board.SCL, board.SDA)
@@ -28,23 +41,26 @@ import oled
 from oled import displayMode
 oled = oled.ssd1306_oled()
 oled.setup()
+oled.setDistanceRange(distanceRange)
 
 oled.logger("VL53L0X ToF..")
 from vl53l0x.api import VL53L0X
 tof = VL53L0X()
 tof.setup()
+oled.setProgress(0.2)
 
 oled.logger("Camera face recognizer..")
 from faceRecognizer import recognizer
 fRecognizer = recognizer()
 fRecognizer.setup()
+oled.setProgress(0.6)
 
 os.putenv('SDL_FBDEV', '/dev/fb1')
 
 #initialize the sensor
 oled.logger("AMG8833..")
 sensor = Adafruit_AMG88xx(0x00, AMG8833_ADDRESS)
-
+oled.setProgress(0.8)
 # Operating Modes
 #AMG88xx_NORMAL_MODE = 0x00
 #AMG88xx_SLEEP_MODE = 0x01
@@ -67,7 +83,9 @@ def map(x, in_min, in_max, out_min, out_max):
 
 #let the sensor initialize
 oled.logger("waiting for sensors...")
+oled.setProgress(0.9)
 time.sleep(1)
+oled.setProgress(1)
 oled.setStatus("READY")
 oled.logger("READY")
 led.off()
@@ -80,6 +98,7 @@ class measureResult:
 	def addMeasureResut(self, result):
 		# exclude out of range values.. here
 		self.results.append(result)
+		print( datetime.datetime.now().isoformat() + " Sample[" + str(len(self.results)) + "] User : " + self.name + " TEMP : " + str(round(float(result), 1)))
 		if(len(self.results) == self.measureCount):
 			return True
 		return False
@@ -89,13 +108,14 @@ class measureResult:
 
 	def getProgress(self):
 		currentMeasureCount = len(self.results)
-		print("progress : " + str(currentMeasureCount / self.measureCount))
 		return currentMeasureCount / self.measureCount
 
 	def averageTemp(self):
-		sampleCount = len(self.results)
-		for result in self.results:
-			print(result)
+		avg = numpy.average(numpy.array(self.results))
+		#print( datetime.datetime.now().isoformat() + " User : " + self.name + " TEMP : " + str(round(float(avg), 1)))
+		return str(round(float(avg), 1))
+		
+		
 
 
 class thermalLogger:
@@ -112,6 +132,8 @@ class thermalLogger:
 			currentTargetLastseenAt = 0 # lastseen timestamp in ms
 			currentDetectedPerson = None
 			currentUserResult = None
+			shouldSkipFaceRecognitionUntil = time.time() * 1000
+			recognizedQueue = queue.Queue(maxsize=faceRecognitionSkipThreshold)
 
 			while(True):
 
@@ -123,17 +145,44 @@ class thermalLogger:
 					# check distance sensor
 					distance = tof.measure()
 					#print("d : " + str(distance) + " diff: " + str(int(time.time() * 1000) - latestActivityAt) + " cur : " + str(int(time.time() * 1000)) + " / " + str(latestActivityAt))
-					if(distance < 2000):
-						print("range sensor detected")
-						oled.wakeUp()
+					if(distance < wakeUpRangeThreshold):
+						oled.logger("Range sensor detected at "+ str(distance) +" mm")
+						oled.setProgress(1) # full progress
+						oled.setScanMode()
 						latestActivityAt = int(time.time() * 1000)
 
 					continue
 
+
 				led.on()
-				#when camera detect the face, start the 
-				detectedPerson = fRecognizer.lookout()
+				detectedPerson = None
+				# if the same person is keep detecting, we can skip for a while.
+				if(time.time() * 1000 < shouldSkipFaceRecognitionUntil):
+					# skip face recognition(just detect face)
+					faceRecogResult = fRecognizer.lookout(shouldRecognizeFace=False)
+					if(faceRecogResult != None):
+						detectedPerson = currentDetectedPerson
+				else:
+					# try camera for face recognition
+					detectedPerson = fRecognizer.lookout()
+					if(detectedPerson != None):
+						print("detected : " + detectedPerson.name)
+						if(detectedPerson.name != "Unknown"):
+							# if the queue is full, remove it.
+							if(recognizedQueue.qsize() == faceRecognitionSkipThreshold):
+								recognizedQueue.get_nowait()
+							recognizedQueue.put_nowait(detectedPerson.name)
+						# check if entire queue is the same person, then set skip for 2 seconds
+						if(recognizedQueue.qsize() == faceRecognitionSkipThreshold):
+							isSamePerson = True
+							for name in recognizedQueue.queue:
+								if(detectedPerson.name != name):
+									isSamePerson = False
+
+							if(isSamePerson == True):
+								shouldSkipFaceRecognitionUntil = shouldSkipFaceRecognitionUntil = time.time() * 1000 + faceRecognitionSkipDuration
 				led.off()
+
 
 				#print("==> " + str(int(time.time() * 1000) - currentTargetLastseenAt) + " ms")
 
@@ -141,7 +190,11 @@ class thermalLogger:
 				# Once face recognized, ignore no detection within 3 seconds. Also assume the same person is there.
 				if((int(time.time() * 1000) - currentTargetLastseenAt > 3000) and (detectedPerson == None)):
 					# recognized face within 5 seconds, continue immediately.
-					oled.setDisplayMode(displayMode.Scan)
+					#print("Transition to Scan mode")
+					currentDetectedPerson = None
+					oled.setScanMode()
+					# send sleep until progress to OLED
+					oled.setProgress(1 - ( int(time.time() * 1000) - latestActivityAt ) / noneActivityDuration)
 					#print("skipping ToF.. try to recognize user.")
 					continue
 
@@ -167,15 +220,11 @@ class thermalLogger:
 
 				# check the distance between AMG8833 and human. 
 				distance = tof.measure()
-				if(distance <= 300):
-					oled.setStatus("CLOSE")
+				oled.setDistance(distance)
+				if(distance <= distanceRange[0]):
 					continue
-				elif(distance >= 600):
-					oled.setStatus("FAR")
+				elif(distance >= distanceRange[1]):
 					continue
-				else:
-					oled.setStatus(str(distance) +" mm")
-					#oled.logger("Distance "+ str(distance) +" mm")
 				
 				#read the pixels
 				pixels = sensor.readPixels()
@@ -183,15 +232,15 @@ class thermalLogger:
 
 				pixels_array = numpy.array(pixels)
 				pixels_max   = numpy.amax(pixels_array)
-				pixels_min   = numpy.amin(pixels_array)
+				#pixels_min   = numpy.amin(pixels_array)
 				thermistor_temp = i2c.read_word_data(AMG8833_ADDRESS, 0xE)
 				thermistor_temp = thermistor_temp * 0.0625
 				offset_thrm = (-0.6857*thermistor_temp+27.187) # thermistor correction
-				offset_thrm = offset_thrm-((60-(distance/10))*0.064) # correction with distance
+				offset_thrm = offset_thrm-((60-(distance/10))*0.065) # correction with distance
 					
 				offset_temp = offset_thrm
 				max_temp =  round(pixels_max + offset_temp, 1) 
-				print('temp:' + str(max_temp) + ' c / distance ' + str(distance/10) + 'cm')
+				#print('temp:' + str(max_temp) + ' c / distance ' + str(distance/10) + 'cm')
 				oled.targetTemp(str(max_temp) + ' c ' + str(distance/10) + 'cm')
 
 				isMeasureComplete = currentUserResult.addMeasureResut(max_temp)
@@ -202,17 +251,43 @@ class thermalLogger:
 					print("complete measurement for " + currentUserResult.getName())
 					self.showUserResult(currentUserResult)
 
+					# restore scan mode
+					currentDetectedPerson = None
+					oled.setScanMode()
+
 		except KeyboardInterrupt:
 			oled.logger("shutdown")
 			oled.shutdown()
 			fRecognizer.shutdown()
 
+		print("end main")
 	def showUserResult(self, userResult):
 		# save to file
 
 		oled.setResultMode(userResult)
 		#oled.setDisplayMode(displayMode.Result)
-		time.sleep(10)
+
+		try:
+			from pathlib import Path
+			Path(os.path.join("history")).mkdir(parents=True, exist_ok=True)
+			f = open(os.path.join("history", userResult.name + ".csv"), 'a')
+			writer = csv.writer(f, lineterminator='\n')
+
+			csvlist = []
+			csvlist.append(datetime.datetime.now().isoformat()) # timestamp
+			csvlist.append(userResult.averageTemp())
+			csvlist.append(userResult.results)
+			writer.writerow(csvlist)
+			f.close()
+
+		except:
+			oled.logger("FILE ERROR")
+			oled.logger(userResult.name + ".csv")
+
+		
+		for x in range(30):
+			oled.setProgress( 1 - (x / float(30)))
+			time.sleep(0.1)
 		# if user is not detected for 3 seconds, return to the main loop
 
 

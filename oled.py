@@ -10,6 +10,7 @@ import time
 import os
 import threading
 import enum
+import datetime
 
 class displayMode(enum.Enum):
    Sleep = 0
@@ -18,12 +19,15 @@ class displayMode(enum.Enum):
    Result = 4
    Log = 9
 
-
 class ssd1306_oled(object):
     def __init__(self):
         print("oled initialize")
         self.displayMode = displayMode.Log
-    
+        self.displayProgress = 0
+        self.animationFrame = 1 
+        self.distanceRange = (300, 600)
+        self.distance = 0
+  
     def refreshThread(self):
         while True:
             # check terminate
@@ -35,28 +39,52 @@ class ssd1306_oled(object):
                 #clear the screen and wait 1 sec.
                 with canvas(self.device) as drawUpdate:
                     #drawUpdate.text((40, 40), "SLEEP" , font=self.font16, fill=100)
-                    time.sleep(0.03) # 30 FPS
+                    time.sleep(0.03)
                 continue
                 
 
             with canvas(self.device) as drawUpdate:
 
+                if(self.displayProgress < self.measureProgress):
+                    self.displayProgress = self.displayProgress + abs(self.measureProgress - self.displayProgress) / 5.0
+                else:
+                    self.displayProgress = self.displayProgress - abs(self.displayProgress - self.measureProgress) / 5.0
+
+                progressWidth = 128 * self.displayProgress
+                drawUpdate.rectangle((0, 63, progressWidth, 64), outline="white", fill="white")
+
+
                 if(self.displayMode == displayMode.Result):
-                    drawUpdate.text((40, 20), self.name.upper() , font=self.font16, fill=100)
+                    drawUpdate.text((5, 0), self.name.upper() , font=self.font16, fill=100)
+                    drawUpdate.text((20, 10), self.result.averageTemp() + "C" , font=self.tempFont32, fill=100)
+                   
 
                 if(self.displayMode == displayMode.TargetUser):
-                    drawUpdate.text((40, 20), self.name.upper() , font=self.font16, fill=100)
-                    drawUpdate.text((0, 40), "measuring your temperature".upper() , font=self.font8, fill=100)
-                    drawUpdate.text((40, 50), self.temp , font=self.font8, fill=100)
+                    drawUpdate.text((5, 0), self.name.upper() , font=self.font16, fill=100)
+                    #drawUpdate.text((0, 40), "measuring your temperature".upper() , font=self.font8, fill=100)
+                    #drawUpdate.text((40, 50), self.temp , font=self.font8, fill=100)
 
-                    # calc width for 
-                    progressWidth = 128 * self.measureProgress
-
-                    drawUpdate.rectangle((0, 60, progressWidth, 64), outline="white", fill="white")
+                    if(self.distance <= self.distanceRange[0]):
+                        # too close
+                        downBmp         = Image.open(os.path.join("images",  "down.bmp"))
+                        drawUpdate.bitmap((0,0), downBmp, fill=100)
+                    elif(self.distance >= self.distanceRange[1]):
+                        upBmp           = Image.open(os.path.join("images",  "up.bmp"))
+                        drawUpdate.bitmap((0,0), upBmp, fill=100)
+                    else:
+                        measureBmp      = Image.open(os.path.join("images",  "measure.bmp"))
+                        drawUpdate.bitmap((0,0), measureBmp, fill=100)
+                    
 
                 if(self.displayMode == displayMode.Scan):
-                    #drawUpdate.text((40, 20), "HELLO!" , font=self.font16, fill=100)
-                    drawUpdate.text((20, 40), "DETECTING YOUR FACE.." , font=self.font8, fill=100)
+                    #drawUpdate.text((15, 0), "DETECTING" , font=self.font16, fill=100)
+                    #drawUpdate.text((30, 20), "FACE" , font=self.font32, fill=100)
+                    scanBmp      = Image.open(os.path.join("images",  "s" + str(self.animationFrame) + ".bmp"))
+                    drawUpdate.bitmap((0,0), scanBmp, fill=100)
+                    self.animationFrame = self.animationFrame + 1
+                    time.sleep(0.03) # lower screen refresh
+                    if(self.animationFrame > 10):
+                        self.animationFrame = 1
 
                 if(self.displayMode == displayMode.Log):
                     drawUpdate.text((10, 0), self.name , font=self.font8, fill=100)
@@ -70,23 +98,30 @@ class ssd1306_oled(object):
             
         print("refresh thread terminated.")
 
-    def wakeUp(self):
-        self.displayMode = displayMode.Scan
-
-    # Shinuhodo kitanai code start(need to kill 'em)
-
     def setDisplayMode(self, mode):
         self.displayMode = mode
 
     def setTargetUserMode(self, name):
         self.name = name
-        self.measureProgress = 0 # rest to 0%
+        self.setProgress(0)
         self.setDisplayMode(displayMode.TargetUser)
+
+    def setScanMode(self):
+        if(self.displayMode == displayMode.Scan):
+            return
+        self.setProgress(1)
+        self.setDisplayMode(displayMode.Scan)
 
     def setResultMode(self, result):
         self.result = result
+        self.setProgress(1)
         self.setDisplayMode(displayMode.Result)
 
+    def setDistance(self, distance):
+        self.distance = distance
+    
+    def setDistanceRange(self, distanceRange):
+        self.distanceRange = distanceRange
 
     def setup(self):
         self.serial = i2c(port=1, address=0x3C)
@@ -98,6 +133,8 @@ class ssd1306_oled(object):
         self.imagedir = os.path.join(basedir, 'images')
         self.font8 = ImageFont.truetype(self.ttf, 8)
         self.font16 = ImageFont.truetype(self.ttf, 16)
+        self.font32 = ImageFont.truetype(self.ttf, 32)
+        self.tempFont32 = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", 32)
 
         # logging
         self.lines = []
@@ -121,8 +158,8 @@ class ssd1306_oled(object):
         self.status = statusString
     
     def logger(self, line):
-        self.isLogMode = True
-        print(str(self.lineNumber) + " " + line.upper())
+        self.setDisplayMode(displayMode.Log)
+        print(datetime.datetime.now().isoformat() + " " + str(self.lineNumber) + " " + line.upper())
         self.lines.append(str(self.lineNumber) + " " + line.upper())
         self.lineNumber = self.lineNumber + 1
         # if the line is 5+ scroll it.
@@ -131,12 +168,11 @@ class ssd1306_oled(object):
         
     def setProgress(self, progress):
         self.measureProgress = progress
+        if((progress == 1) or (progress == 0)):
+            self.displayProgress = progress
 
     def targetTemp(self, temp):
         self.temp = temp
-        self.isTargetUserMode = True
-        self.isScanMode = False
-
     
     def shutdown(self):
         # do a bit of cleanup
