@@ -95,7 +95,7 @@ class ssd1306_oled(object):
 
                     time.sleep(0.03) # lower screen refresh
                     if(self.animationFrame > 14):
-                        if(randrange(3) == 1):
+                        if(randrange(6) == 1):
                             self.animationFrame = 10
                         elif(randrange(3) == 2):
                             self.animationFrame = 6
