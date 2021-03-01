@@ -8,5 +8,6 @@ Raspberry Pi thermometer with face recognition, AMG8833, ssd1306 OLED screen.
 ![flow](https://github.com/kotamorishi/pi-thermo-logger/raw/main/flow.png?raw=true)
 
 # Todo
-* Sleep sensors(Camera, AMG8833) when Range sensor 
-* Clean up.
+* Sleep sensors(Camera, AMG8833) when range sensor detect nothing.
+* Clean up code - It is pretty bad.
+* 3D printed housing for wall mount.
