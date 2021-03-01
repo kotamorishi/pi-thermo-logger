@@ -13,3 +13,4 @@ Raspberry Pi thermometer with face recognition, AMG8833, ssd1306 OLED screen.
 * Sleep sensors(Camera, AMG8833) when range sensor detect nothing.
 * Clean up code - It is pretty bad.
 * 3D printed housing for wall mount.
+* PCB or fully assembled kit.
