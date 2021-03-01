@@ -16,9 +16,9 @@ AMG8833_ADDRESS = 0x69 # set address for AMG8833(0x68 or 0x69)
 # when detected the face, will scan frequently.
 freqencyScanDuration = 5000 # 5 sec
 # Seconds to sleep with inactivity
-noneActivityDuration = 20000 # 30 sec
-# Thermal camera measure count(default : 20 times, 30 times makes slightly better?)
-thermalCameraMeasureCount = 20
+noneActivityDuration = 30000 # 30 sec
+# Thermal camera measure count(default : 10 times, 30 times makes slightly better?)
+thermalCameraMeasureCount = 10
 # Face recognition skip threshold (User recognized consecutive 2 times ,then skip 2 seconds)
 faceRecognitionSkipThreshold = 2
 faceRecognitionSkipDuration = 2000 # in ms
@@ -42,6 +42,8 @@ from oled import displayMode
 oled = oled.ssd1306_oled()
 oled.setup()
 oled.setDistanceRange(distanceRange)
+
+time.sleep(1)
 
 oled.logger("VL53L0X ToF..")
 from vl53l0x.api import VL53L0X
@@ -94,12 +96,18 @@ class measureResult:
 	def __init__(self, name, measureCount):
 		self.name = name
 		self.measureCount = measureCount
-		self.results = []
-	def addMeasureResut(self, result):
+		self.estimated = []
+		self.thermista = []
+		self.distance = []
+		self.raw = []
+	def addMeasureResut(self, estimatedTemp, thermistaTemp, distance, rawTemp):
 		# exclude out of range values.. here
-		self.results.append(result)
-		print( datetime.datetime.now().isoformat() + " Sample[" + str(len(self.results)) + "] User : " + self.name + " TEMP : " + str(round(float(result), 1)))
-		if(len(self.results) == self.measureCount):
+		self.estimated.append(estimatedTemp)
+		self.thermista.append(thermistaTemp)
+		self.distance.append(distance)
+		self.raw.append(rawTemp)
+		print( datetime.datetime.now().isoformat() + " Sample[" + str(len(self.estimated)) + "] User : " + self.name + " TEMP : " + str(round(float(estimatedTemp), 1)))
+		if(len(self.estimated) == self.measureCount):
 			return True
 		return False
 
@@ -107,11 +115,11 @@ class measureResult:
 		return self.name
 
 	def getProgress(self):
-		currentMeasureCount = len(self.results)
+		currentMeasureCount = len(self.estimated)
 		return currentMeasureCount / self.measureCount
 
 	def averageTemp(self):
-		avg = numpy.average(numpy.array(self.results))
+		avg = numpy.average(numpy.array(self.estimated))
 		#print( datetime.datetime.now().isoformat() + " User : " + self.name + " TEMP : " + str(round(float(avg), 1)))
 		return str(round(float(avg), 1))
 		
@@ -232,7 +240,7 @@ class thermalLogger:
 
 				pixels_array = numpy.array(pixels)
 				pixels_max   = numpy.amax(pixels_array)
-				#pixels_min   = numpy.amin(pixels_array)
+				#pixels_min   = numpy.amin(pixels_array) #never used
 				thermistor_temp = i2c.read_word_data(AMG8833_ADDRESS, 0xE)
 				thermistor_temp = thermistor_temp * 0.0625
 				offset_thrm = (-0.6857*thermistor_temp+27.187) # thermistor correction
@@ -241,9 +249,10 @@ class thermalLogger:
 				offset_temp = offset_thrm
 				max_temp =  round(pixels_max + offset_temp, 1) 
 				#print('temp:' + str(max_temp) + ' c / distance ' + str(distance/10) + 'cm')
-				oled.targetTemp(str(max_temp) + ' c ' + str(distance/10) + 'cm')
+				#oled.targetTemp(str(max_temp) + ' c ' + str(distance/10) + 'cm')
 
-				isMeasureComplete = currentUserResult.addMeasureResut(max_temp)
+
+				isMeasureComplete = currentUserResult.addMeasureResut(max_temp, thermistor_temp, distance, pixels_max)
 				oled.setProgress(currentUserResult.getProgress())
 
 				if(isMeasureComplete):
@@ -260,36 +269,61 @@ class thermalLogger:
 			oled.shutdown()
 			fRecognizer.shutdown()
 
-		print("end main")
+		print("bye!")
+
 	def showUserResult(self, userResult):
-		# save to file
-
 		oled.setResultMode(userResult)
-		#oled.setDisplayMode(displayMode.Result)
 
+		# save to file
+		self.writeToCSV(userResult)
+		
+		for x in range(50):
+			oled.setProgress( 1 - (x / float(50)))
+			time.sleep(0.1)
+		# if user is not detected for 3 seconds, return to the main loop
+		time.sleep(0.2)
+
+	def writeToCSV(self, userResult):
 		try:
 			from pathlib import Path
 			Path(os.path.join("history")).mkdir(parents=True, exist_ok=True)
-			f = open(os.path.join("history", userResult.name + ".csv"), 'a')
+			filepath = os.path.join("history", userResult.name + ".csv")
+
+			# if file does not exists, add header
+			shouldMakeHeader = False
+			if(os.path.exists(filepath) == False):
+				shouldMakeHeader = True
+
+			# open file
+			f = open(filepath, 'a')
+
 			writer = csv.writer(f, lineterminator='\n')
+
+			# header write
+			if(shouldMakeHeader == True):
+				csvlist = []
+				csvlist.append("timestamp")
+				csvlist.append("Estimated")
+				csvlist.append("Estimate")
+				csvlist.append("Thermistor")
+				csvlist.append("Distance")
+				csvlist.append("Maximum")
+				writer.writerow(csvlist)
 
 			csvlist = []
 			csvlist.append(datetime.datetime.now().isoformat()) # timestamp
-			csvlist.append(userResult.averageTemp())
-			csvlist.append(userResult.results)
+			csvlist.append(userResult.averageTemp()) # average estimated body temp
+			csvlist.append(userResult.estimated)     # array of estimated temp
+			csvlist.append(userResult.thermista)     # array of thermist temp
+			csvlist.append(userResult.distance)      # array of distance
+			csvlist.append(userResult.raw)           # array of raw(surface) temp by sensor
+
 			writer.writerow(csvlist)
 			f.close()
 
 		except:
 			oled.logger("FILE ERROR")
 			oled.logger(userResult.name + ".csv")
-
-		
-		for x in range(30):
-			oled.setProgress( 1 - (x / float(30)))
-			time.sleep(0.1)
-		# if user is not detected for 3 seconds, return to the main loop
-		time.sleep(0.2)
 
 
 
