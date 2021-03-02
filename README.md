@@ -1,6 +1,11 @@
 # pi-thermo-logger
 Raspberry Pi thermometer with face recognition, AMG8833, ssd1306 OLED screen. 
 
+# Prerequisites
+* Up to date Raspberry Pi OS
+* Installed OpenCV
+* Face recognize function uses **encodings.pickle** (https://github.com/kotamorishi/facial_recognition)
+
 # Wiring
 ![Wiring](https://github.com/kotamorishi/pi-thermo-logger/blob/main/wire.png?raw=true)
 
