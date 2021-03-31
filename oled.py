@@ -206,13 +206,13 @@ class ssd1306_oled(object):
         self.device = ssd1306(self.serial)
 
         # font configuration
-        self.ttf = '/usr/share/fonts/truetype/04b_03.ttf'
+        self.ttf = '/usr/share/fonts/truetype/04B_03__.TTF'
         basedir = os.path.dirname(os.path.realpath(__file__))
         self.imagedir = os.path.join(basedir, 'images')
         self.font8 = ImageFont.truetype(self.ttf, 8)
         self.font16 = ImageFont.truetype(self.ttf, 16)
         self.font32 = ImageFont.truetype(self.ttf, 32)
-        self.tempFont32 = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", 32)
+        self.tempFont32 = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf", 32)
 
         # logging
         self.lines = []
