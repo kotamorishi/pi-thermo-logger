@@ -31,7 +31,8 @@ wakeUpRangeThreshold = 1500
 distanceRange = (300, 600) # close, far
 
 # User surface to internal temp adjustment - this is totall depending on person.
-estimateOffset = 1.5
+userOffsets = {'Kota':1.5, 'Taro':1.2, 'Hanako':0.3}
+
 
 # init i2c bus
 i2c_bus = busio.I2C(board.SCL, board.SDA)
@@ -96,20 +97,22 @@ oled.logger("READY")
 led.off()
 
 class measureResult:
-	def __init__(self, name, measureCount):
+	def __init__(self, name,measureCount, offset = 0):
 		self.name = name
 		self.measureCount = measureCount
 		self.estimated = []
 		self.thermista = []
 		self.distance = []
 		self.raw = []
+		self.offset = offset
+
 	def addMeasureResut(self, estimatedTemp, thermistaTemp, distance, rawTemp):
 		# exclude out of range values.. here
-		self.estimated.append(estimatedTemp)
+		self.estimated.append(estimatedTemp + self.offset)
 		self.thermista.append(thermistaTemp)
 		self.distance.append(distance)
 		self.raw.append(rawTemp)
-		print( datetime.datetime.now().isoformat() + " Sample[" + str(len(self.estimated)) + "] User : " + self.name + " TEMP : " + str(round(float(estimatedTemp), 1)))
+		print( datetime.datetime.now().isoformat() + " Sample[" + str(len(self.estimated)) + "] User : " + self.name + " TEMP : " + str(round(float(estimatedTemp+self.offset), 1)))
 		if(len(self.estimated) == self.measureCount):
 			return True
 		return False
@@ -223,7 +226,13 @@ class thermalLogger:
 				if(detectedPerson.name != "Unknown"):
 					if(currentDetectedPerson == None) or (detectedPerson.name != currentDetectedPerson.name):
 						# detect person and initialize
-						currentUserResult = measureResult(detectedPerson.name, thermalCameraMeasureCount)
+						offsetAmount = 0
+						try:
+							offsetAmount = userOffsets[detectedPerson.name]
+						except KeyError:
+							pass
+
+						currentUserResult = measureResult(detectedPerson.name, thermalCameraMeasureCount, offsetAmount)
 						oled.setTargetUserMode(detectedPerson.name)
 					currentDetectedPerson = detectedPerson
 					# update latest activity timestamp
@@ -255,7 +264,7 @@ class thermalLogger:
 				offset_thrm = offset_thrm-((60-(distance/10))*0.065) # correction with distance
 					
 				offset_temp = offset_thrm
-				max_temp =  round(pixels_max + offset_temp + estimateOffset, 1) 
+				max_temp =  round(pixels_max + offset_temp, 1) 
 				#print('temp:' + str(max_temp) + ' c / distance ' + str(distance/10) + 'cm')
 				#oled.targetTemp(str(max_temp) + ' c ' + str(distance/10) + 'cm')
 
@@ -270,6 +279,7 @@ class thermalLogger:
 
 					# restore scan mode
 					currentDetectedPerson = None
+					currentUserResult = None
 					oled.setScanMode()
 
 		except KeyboardInterrupt:
