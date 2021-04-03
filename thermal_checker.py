@@ -27,8 +27,11 @@ faceRecognitionSkipDuration = 2000 # in ms
 wakeUpRangeThreshold = 1500
 
 # exclude measurements
-excludeTemp = (30, 42) # low, high
+#excludeTemp = (30, 42) # low, high
 distanceRange = (300, 600) # close, far
+
+# User surface to internal temp adjustment - this is totall depending on person.
+estimateOffset = 1.5
 
 # init i2c bus
 i2c_bus = busio.I2C(board.SCL, board.SDA)
@@ -225,10 +228,15 @@ class thermalLogger:
 					currentDetectedPerson = detectedPerson
 					# update latest activity timestamp
 
+				# skip for not-detecting people
+				if(currentUserResult == None):
+					continue
 
 				# check the distance between AMG8833 and human. 
 				distance = tof.measure()
 				oled.setDistance(distance)
+				print("distance : " + str(distance))
+
 				if(distance <= distanceRange[0]):
 					continue
 				elif(distance >= distanceRange[1]):
@@ -247,7 +255,7 @@ class thermalLogger:
 				offset_thrm = offset_thrm-((60-(distance/10))*0.065) # correction with distance
 					
 				offset_temp = offset_thrm
-				max_temp =  round(pixels_max + offset_temp, 1) 
+				max_temp =  round(pixels_max + offset_temp + estimateOffset, 1) 
 				#print('temp:' + str(max_temp) + ' c / distance ' + str(distance/10) + 'cm')
 				#oled.targetTemp(str(max_temp) + ' c ' + str(distance/10) + 'cm')
 

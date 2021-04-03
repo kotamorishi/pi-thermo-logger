@@ -98,7 +98,7 @@ class ssd1306_oled(object):
 
                 if(self.displayMode == displayMode.Result):
                     drawUpdate.text((5, 0), self.name.upper() , font=self.font16, fill=100)
-                    drawUpdate.text((20, 10), self.result.averageTemp() + "C" , font=self.tempFont32, fill=100)
+                    drawUpdate.text((20, 20), self.result.averageTemp() + "C" , font=self.tempFont32, fill=100)
                    
 
                 if(self.displayMode == displayMode.TargetUser):
