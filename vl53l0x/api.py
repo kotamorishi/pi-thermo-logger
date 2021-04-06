@@ -9,9 +9,9 @@ from vl53l0x.register import *
 from vl53l0x.utils import *
 
 class VL53L0X(object):
-    def __init__(self):
+    def __init__(self, i2c_address=0x29):
         # i2c device address
-        self.address = VL53L0X_DEFAULT_ADDRESS
+        self.address = i2c_address
 
         # smbus object
         self.bus = smbus.SMBus(1)

@@ -11,8 +11,7 @@ import queue
 import csv
 from gpiozero import LED
 
-# I2C address setting
-AMG8833_ADDRESS = 0x69 # set address for AMG8833(0x68 or 0x69)
+
 # when detected the face, will scan frequently.
 freqencyScanDuration = 5000 # 5 sec
 # Seconds to sleep with inactivity
@@ -33,6 +32,22 @@ distanceRange = (300, 600) # close, far
 # User surface to internal temp adjustment - this is totall depending on person.
 userOffsets = {'Kota':1.5, 'Taro':1.2, 'Hanako':0.3}
 
+# i2c addresses - check with "i2cdetect -y 1"
+#      0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+# 00:          -- -- -- -- -- -- -- -- -- -- -- -- -- 
+# 10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+# 20: -- -- -- -- -- -- -- -- -- 29 -- -- -- -- -- -- 
+# 30: -- -- -- -- -- -- -- -- -- -- -- -- 3c -- -- -- 
+# 40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+# 50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+# 60: -- -- -- -- -- -- -- -- -- 69 -- -- -- -- -- -- 
+# 70: -- -- -- -- -- -- -- --     
+# AMG8833 (default:0x69)
+I2C_ADDRESS_AMG8833=0x69
+# OLED SSD1306 (default:0x3C)
+I2C_ADDRESS_OLED=0x3C
+# VL53L0X (default:0x29)
+I2C_ADDRESS_VL53L0X=0x29
 
 # init i2c bus
 i2c_bus = busio.I2C(board.SCL, board.SDA)
@@ -44,14 +59,12 @@ led.on()
 import oled
 from oled import displayMode
 oled = oled.ssd1306_oled()
-oled.setup()
+oled.setup(i2c_address=I2C_ADDRESS_OLED)
 oled.setDistanceRange(distanceRange)
-
-time.sleep(1)
 
 oled.logger("VL53L0X ToF..")
 from vl53l0x.api import VL53L0X
-tof = VL53L0X()
+tof = VL53L0X(I2C_ADDRESS_VL53L0X)
 tof.setup()
 oled.setProgress(0.2)
 
@@ -65,7 +78,7 @@ os.putenv('SDL_FBDEV', '/dev/fb1')
 
 #initialize the sensor
 oled.logger("AMG8833..")
-sensor = Adafruit_AMG88xx(0x00, AMG8833_ADDRESS)
+sensor = Adafruit_AMG88xx(0x00, I2C_ADDRESS_AMG8833)
 oled.setProgress(0.8)
 # Operating Modes
 #AMG88xx_NORMAL_MODE = 0x00
@@ -74,11 +87,11 @@ oled.setProgress(0.8)
 #AMG88xx_STAND_BY_10 = 0x21
 
 # enable moving average
-i2c.write_byte_data(AMG8833_ADDRESS, 0x1F, 0x50)
-i2c.write_byte_data(AMG8833_ADDRESS, 0x1F, 0x45)
-i2c.write_byte_data(AMG8833_ADDRESS, 0x1F, 0x57)
-i2c.write_byte_data(AMG8833_ADDRESS, 0x07, 0x20)
-i2c.write_byte_data(AMG8833_ADDRESS, 0x1F, 0x00)
+i2c.write_byte_data(I2C_ADDRESS_AMG8833, 0x1F, 0x50)
+i2c.write_byte_data(I2C_ADDRESS_AMG8833, 0x1F, 0x45)
+i2c.write_byte_data(I2C_ADDRESS_AMG8833, 0x1F, 0x57)
+i2c.write_byte_data(I2C_ADDRESS_AMG8833, 0x07, 0x20)
+i2c.write_byte_data(I2C_ADDRESS_AMG8833, 0x1F, 0x00)
 
 #some utility functions
 def constrain(val, min_val, max_val):

@@ -201,8 +201,8 @@ class ssd1306_oled(object):
     def setDistanceRange(self, distanceRange):
         self.distanceRange = distanceRange
 
-    def setup(self):
-        self.serial = i2c(port=1, address=0x3C)
+    def setup(self, i2c_address=0x3C):
+        self.serial = i2c(port=1, address=i2c_address)
         self.device = ssd1306(self.serial)
 
         # font configuration
