@@ -29,7 +29,7 @@ wakeUpRangeThreshold = 1500
 #excludeTemp = (30, 42) # low, high
 distanceRange = (300, 600) # close, far
 
-# User surface to internal temp adjustment - this is totall depending on person.
+# User surface to internal temp adjustment - this is depending on person.
 userOffsets = {'Kota':1.5, 'Taro':1.2, 'Hanako':0.3}
 
 # i2c addresses - check with "i2cdetect -y 1"
