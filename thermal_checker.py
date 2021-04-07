@@ -271,7 +271,7 @@ class thermalLogger:
 				pixels_array = numpy.array(pixels)
 				pixels_max   = numpy.amax(pixels_array)
 				#pixels_min   = numpy.amin(pixels_array) #never used
-				thermistor_temp = i2c.read_word_data(AMG8833_ADDRESS, 0xE)
+				thermistor_temp = i2c.read_word_data(I2C_ADDRESS_AMG8833, 0xE)
 				thermistor_temp = thermistor_temp * 0.0625
 				offset_thrm = (-0.6857*thermistor_temp+27.187) # thermistor correction
 				offset_thrm = offset_thrm-((60-(distance/10))*0.065) # correction with distance
