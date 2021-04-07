@@ -11,6 +11,8 @@ import queue
 import csv
 from gpiozero import LED
 
+# it's a dirty magic.
+os.chdir("/home/pi/pi-thermo-logger")
 
 # when detected the face, will scan frequently.
 freqencyScanDuration = 5000 # 5 sec
@@ -30,7 +32,7 @@ wakeUpRangeThreshold = 1500
 distanceRange = (300, 600) # close, far
 
 # User surface to internal temp adjustment - this is depending on person.
-userOffsets = {'Kota':1.5, 'Taro':1.2, 'Hanako':0.3}
+userOffsets = {'Kota':1.2, 'Taro':1.2, 'Hanako':0.3}
 
 # i2c addresses - check with "i2cdetect -y 1"
 #      0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
@@ -125,7 +127,7 @@ class measureResult:
 		self.thermista.append(thermistaTemp)
 		self.distance.append(distance)
 		self.raw.append(rawTemp)
-		print( datetime.datetime.now().isoformat() + " Sample[" + str(len(self.estimated)) + "] User : " + self.name + " TEMP : " + str(round(float(estimatedTemp+self.offset), 1)))
+		#print( datetime.datetime.now().isoformat() + " Sample[" + str(len(self.estimated)) + "] User : " + self.name + " TEMP : " + str(round(float(estimatedTemp+self.offset), 1)))
 		if(len(self.estimated) == self.measureCount):
 			return True
 		return False
@@ -193,7 +195,7 @@ class thermalLogger:
 					# try camera for face recognition
 					detectedPerson = fRecognizer.lookout()
 					if(detectedPerson != None):
-						print("detected : " + detectedPerson.name)
+						#print("detected : " + detectedPerson.name)
 						if(detectedPerson.name != "Unknown"):
 							# if the queue is full, remove it.
 							if(recognizedQueue.qsize() == faceRecognitionSkipThreshold):
@@ -257,7 +259,7 @@ class thermalLogger:
 				# check the distance between AMG8833 and human. 
 				distance = tof.measure()
 				oled.setDistance(distance)
-				print("distance : " + str(distance))
+				#print("distance : " + str(distance))
 
 				if(distance <= distanceRange[0]):
 					continue
